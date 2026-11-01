@@ -12,5 +12,6 @@ r = requests.post(f"{API}/sendMediaGroup",
 print(r.text)
 r.raise_for_status()
 
-cap = open("out/caption.txt", encoding="utf-8").read()
-requests.post(f"{API}/sendMessage", data={"chat_id": C, "text": cap})
+txt = open("out/caption.txt", encoding="utf-8").read()
+for part in txt.split("\n-----\n"):
+    requests.post(f"{API}/sendMessage", data={"chat_id": C, "text": part})
