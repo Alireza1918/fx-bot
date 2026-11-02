@@ -20,7 +20,10 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
       - if: steps.chk.outputs.go == 'true'
-        run: pip install yfinance mplfinance six
+        run: |
+          pip install yfinance mplfinance six arabic-reshaper python-bidi
+          mkdir -p fonts
+          curl -L -o fonts/Vazirmatn.ttf "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf"
       - if: steps.chk.outputs.go == 'true'
         run: python generate.py
       - if: steps.chk.outputs.go == 'true'
