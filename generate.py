@@ -199,25 +199,37 @@ draw(w, "out/slide2.png", "UP ▲" if up else "DOWN ▼", col, sub,
      extra=f"{p_start:.2f}  →  {p_end:.2f}",
      footer="Comment your analysis", result=True)
 
-caption = (f"طلا | نماد داده: {source_symbol} | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
-          f"سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} (وقت تهران)\n\n"
-          "بعد از یه حرکت تند، قیمت یه مکث کرده 🚀\n"
-          "از اینجا بالا میره یا پایین؟ 👆👇\n\n"
-          "✍️ حدست رو با دلیل بنویس\n"
-          "📸 یا عکس تحلیل خودت رو کامنت کن\n"
-          "بعد برو اسلاید دوم و جواب رو ببین ✅\n"
-          "بهترین تحلیل رو پین می‌کنم 📌\n\n"
-          "⚠️ محتوای آموزشی/سرگرمیه و توصیه مالی نیست.\n"
-          "#طلا #فارکس #xauusd #gold #پرایس_اکشن #تحلیل_تکنیکال #forex #trading")
+impulse_direction_fa = "صعودی" if a["net"] > 0 else "نزولی"
+move_direction_fa = "بالا" if p_end > p_start else "پایین"
+move_delta = p_end - p_start
+move_percent = abs(move_delta) / abs(p_start) * 100 if p_start else 0.0
+pause_window = w.iloc[IMP:SHOW]
+pause_range = pause_window["High"].max() - pause_window["Low"].min()
+continuation_fa = ("ادامه‌ی جهت حرکت اولیه" if a["cont"]
+                   else "حرکت خلاف جهت اولیه")
 
-dir_fa = "بالا" if up else "پایین"
-kind_fa = "ادامه‌ی حرکت قبلی" if a["cont"] else "برگشت"
-answer = (f"✅ جواب: قیمت {dir_fa} رفت.\n"
-          f"از {p_start:.2f} شروع شد و به {p_end:.2f} رسید.\n\n"
-          "نکات برای کامنت پین‌شده:\n"
-          f"• قبل از مکث یه حرکت {'صعودی' if a['net'] > 0 else 'نزولی'} تند و تمیز بود.\n"
-          f"• بعد از مکث کوتاه، قیمت {dir_fa} رفت ({kind_fa}).\n\n"
-          "شما چی دیده بودید؟ 👇")
+caption = (
+    f"📊 مکث طلا؛ ادامه یا برگشت؟\n\n"
+    f"پیش از مکث، حرکت {impulse_direction_fa} دیده شد؛ تغییر قیمت در {IMP} کندل حدود {abs(a['net']):.2f} دلار بود.\n"
+    f"بعد از آن {PAUSE} کندل مکث با دامنه‌ی تقریبی {pause_range:.2f} دلار داشتیم.\n\n"
+    "قبل از دیدن اسلاید دوم حدس بزن: حرکت بعدی ادامه بود یا برگشت؟ چه نشانه‌ای دیدی؟\n"
+    "اسلاید دوم نتیجه‌ی همین بازه را نشان می‌دهد.\n\n"
+    f"📍 نماد منبع: {source_symbol} | تایم‌فریم: {STEP[tf]} دقیقه | سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} تهران\n"
+    "💬 نظرت را با دلیل بنویس؛ ادامه یا برگشت؟\n"
+    f"📲 برای تحلیل‌های کوتاه و آموزشی طلا، {PAGE} را دنبال کن.\n\n"
+    "⚠️ این محتوا آموزشی است، توصیه‌ی خریدوفروش نیست؛ رفتار گذشته آینده را تضمین نمی‌کند.\n"
+    "#طلا #فارکس #پرایس_اکشن #تحلیل_تکنیکال #XAUUSD #Gold #Trading"
+)
+
+answer = (
+    "🔎 جمع‌بندی عددی همین نمونه:\n\n"
+    f"۱) حرکت اولیه: {impulse_direction_fa}؛ حدود {abs(a['net']):.2f} دلار در {IMP} کندل.\n"
+    f"۲) مکث: {PAUSE} کندل؛ دامنه‌ی سقف تا کف حدود {pause_range:.2f} دلار.\n"
+    f"۳) پایان بازه: پس از {HIDE} کندل، قیمت پایانی از {p_start:.2f} به {p_end:.2f} رسید؛ تغییر خالص {move_delta:+.2f} دلار (حدود {move_percent:.2f}٪).\n"
+    f"۴) در همین نمونه، حرکت پس از مکث {continuation_fa} بود ({move_direction_fa}).\n\n"
+    "نکته‌ی آموزشی: مکث به‌تنهایی سیگنال نیست. این جمع‌بندی فقط مقایسه‌ی قیمت پایانی ابتدا و انتهای همین بازه است، نه پیش‌بینی یا تضمین تکرار الگو.\n\n"
+    "💬 تو قبل از دیدن نتیجه چه نشانه‌ای را بررسی می‌کردی؟"
+)
 
 open("out/caption.txt", "w", encoding="utf-8").write(caption + "\n-----\n" + answer)
 from PIL import Image
