@@ -11,7 +11,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install yfinance mplfinance requests six
+      - run: pip install yfinance mplfinance requests six arabic-reshaper python-bidi
+      - run: |
+          mkdir -p fonts
+          curl -L -o fonts/Vazirmatn.ttf "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf"
       - run: python generate.py
       - run: python send.py
         env:
