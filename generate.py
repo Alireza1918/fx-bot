@@ -44,7 +44,7 @@ def load(tf):
                 idx = idx.tz_convert("UTC").tz_localize(None)
             df.index = idx
             if len(df) >= 300:
-                return df
+                return df, sym
         except Exception as e:
             print("load error", sym, tf, e)
     return None
@@ -105,20 +105,21 @@ tfs = ["1m", "5m"]
 random.shuffle(tfs)
 chosen = None
 for tf in tfs:
-    df = load(tf)
-    if df is None:
+    loaded = load(tf)
+    if loaded is None:
         continue
+    df, source_symbol = loaded
     r = pick(df, tf)
     if r:
         i, a = r
-        chosen = (tf, df.iloc[i:i + TOTAL], a)
+        chosen = (tf, df.iloc[i:i + TOTAL], a, source_symbol)
         break
 
 if not chosen:
     print("no setup found")
     sys.exit(1)
 
-tf, w, a = chosen
+tf, w, a, source_symbol = chosen
 shown = w.iloc[:SHOW]
 sess = session_of(w.index[SHOW - 1].hour)
 t_local = pd.DatetimeIndex([w.index[SHOW - 1]]).tz_localize("UTC").tz_convert(DISPLAY_TZ)[0]
@@ -189,7 +190,7 @@ def draw(data, path, title, tcolor, sub, extra=None, footer=None, result=False):
     fig.savefig(path, dpi=100, facecolor=BG)
 
 
-sub = f"XAUUSD  |  {tf.upper()}  |  {SESS_EN[sess]} SESSION"
+sub = f"{source_symbol}  |  {tf.upper()}  |  {SESS_EN[sess]} SESSION"
 
 os.makedirs("out", exist_ok=True)
 draw(shown, "out/slide1.png", "UP or DOWN?", YELLOW, sub,
@@ -198,7 +199,7 @@ draw(w, "out/slide2.png", "UP ▲" if up else "DOWN ▼", col, sub,
      extra=f"{p_start:.2f}  →  {p_end:.2f}",
      footer="Comment your analysis", result=True)
 
-caption = (f"طلا (XAUUSD) | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
+caption = (f"طلا | نماد داده: {source_symbol} | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
           f"سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} (وقت تهران)\n\n"
           "بعد از یه حرکت تند، قیمت یه مکث کرده 🚀\n"
           "از اینجا بالا میره یا پایین؟ 👆👇\n\n"
