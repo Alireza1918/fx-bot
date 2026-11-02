@@ -1,8 +1,20 @@
-import yfinance as yf, mplfinance as mpf, pandas as pd, random, os, sys
+import subprocess, sys
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q",
+                           "arabic-reshaper", "python-bidi"])
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+import yfinance as yf, mplfinance as mpf, pandas as pd, random, os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+matplotlib.rcParams["font.family"] = "DejaVu Sans"
 
+PAGE = "@your_page"          # اسم پیجت رو اینجا بنویس
 DISPLAY_TZ = "Asia/Tehran"
 SYMBOLS = ["XAUUSD=X", "GC=F"]
 CONFIG = {"1m": dict(period="7d", interval="1m"),
@@ -14,6 +26,11 @@ TOTAL = SHOW + HIDE
 SESS_FA = {"ASIA": "آسیا", "LONDON": "لندن",
            "LONDON/NY OVERLAP": "هم‌پوشانی لندن و نیویورک",
            "NEW YORK": "نیویورک"}
+GREEN, RED, YELLOW = "#00e676", "#ff5252", "#ffd54f"
+
+
+def fa(s):
+    return get_display(arabic_reshaper.reshape(s))
 
 
 def session_of(h):
@@ -87,8 +104,8 @@ def analyze(w, avg, mult):
     avgb = (cons["Close"] - cons["Open"]).abs().mean()
     ratio = body / avgb if avgb > 0 else 0
     score = top + bot + 4 * eff + min(ratio, 3)
-    return dict(net=net, hi=hi, lo=lo, h=h, top=top, bot=bot, k=k, d=d,
-                score=score, cont=(d == (1 if net > 0 else -1)))
+    return dict(net=net, top=top, bot=bot, score=score,
+                cont=(d == (1 if net > 0 else -1)))
 
 
 def pick(df, tf):
@@ -135,15 +152,19 @@ shown = w.iloc[:SHOW]
 sess = session_of(w.index[SHOW - 1].hour)
 t_local = pd.DatetimeIndex([w.index[SHOW - 1]]).tz_localize("UTC").tz_convert(DISPLAY_TZ)[0]
 
+p_start = w["Close"].iloc[SHOW - 1]
+p_end = w["Close"].iloc[-1]
+up = p_end > p_start
+col = GREEN if up else RED
+
 lo1, hi1 = shown["Low"].min(), shown["High"].max()
 p1 = (hi1 - lo1) * 0.4
 ylim1 = (lo1 - p1, hi1 + p1)
-
 lo2, hi2 = w["Low"].min(), w["High"].max()
 p2 = (hi2 - lo2) * 0.08
 ylim2 = (lo2 - p2, hi2 + p2)
 
-RECT = [0.03, 0.12, 0.84, 0.72]
+RECT = [0.03, 0.13, 0.84, 0.70]
 STYLE = mpf.make_mpf_style(base_mpf_style="nightclouds", gridstyle=":",
                            gridcolor="#2a2a2a", y_on_right=True)
 
@@ -154,7 +175,8 @@ def tlabels(index, step=10):
     return pos, [t[p].strftime("%H:%M") for p in pos]
 
 
-def draw(data, path, title, color, ylim, sub, extra=None, footer=None, cut=False):
+def draw(data, path, title, tcolor, ylim, sub, extra=None, footer=None,
+         result=False):
     fig, axes = mpf.plot(data, type="candle", style=STYLE, ylabel="",
                          returnfig=True, figsize=(10.8, 13.5))
     for ax_ in axes:
@@ -167,51 +189,60 @@ def draw(data, path, title, color, ylim, sub, extra=None, footer=None, cut=False
     ax.set_xticklabels(labs, color="#cccccc", fontsize=17)
     ax.yaxis.tick_right()
     ax.tick_params(axis="y", labelsize=17, labelcolor="#cccccc")
+
     last = data["Close"].iloc[-1]
-    ax.axhline(last, color="#ffd54f", linestyle="--", linewidth=1, alpha=0.7)
+    lcol = col if result else YELLOW
+    ax.axhline(last, color=lcol, linestyle="--", linewidth=1, alpha=0.7)
     ax.text(1.0, last, f" {last:.2f} ", transform=ax.get_yaxis_transform(),
             ha="left", va="center", color="black", fontsize=17, weight="bold",
-            bbox=dict(fc="#ffd54f", ec="none"), clip_on=False, zorder=10)
-    if cut:
-        ax.axvline(SHOW - 0.5, color="white", linestyle="--", alpha=0.5)
-    fig.text(0.5, 0.95, title, color=color, fontsize=52,
+            bbox=dict(fc=lcol, ec="none"), clip_on=False, zorder=10)
+
+    if result:
+        ax.axvspan(SHOW - 0.5, TOTAL, color=col, alpha=0.08)
+        ax.axvline(SHOW - 0.5, color="white", linestyle="--", alpha=0.6)
+        ax.text(SHOW - 1, ylim[1] - (ylim[1] - ylim[0]) * 0.02,
+                fa("لحظه‌ی حدس"), color="white", fontsize=20,
+                ha="right", va="top", weight="bold")
+
+    fig.text(0.5, 0.95, title, color=tcolor, fontsize=54,
              ha="center", weight="bold")
-    fig.text(0.5, 0.91, sub, color="#aaaaaa", fontsize=26, ha="center")
+    fig.text(0.5, 0.91, sub, color="#aaaaaa", fontsize=24, ha="center")
     if extra:
-        fig.text(0.5, 0.87, extra, color="white", fontsize=28, ha="center")
-    if footer:
-        fig.text(0.5, 0.05, footer, color="#ffd54f", fontsize=24,
+        fig.text(0.5, 0.87, extra, color=tcolor, fontsize=28,
                  ha="center", weight="bold")
+    if footer:
+        fig.text(0.5, 0.075, footer, color=YELLOW, fontsize=26,
+                 ha="center", weight="bold")
+    fig.text(0.5, 0.03, PAGE, color="#777777", fontsize=20, ha="center")
     fig.savefig(path, dpi=100)
 
 
-diff = w["Close"].iloc[-1] - w["Close"].iloc[SHOW - 1]
-up = diff > 0
-sub = f"XAUUSD  |  {tf.upper()}  |  {sess} SESSION"
+sub = fa(f"طلا XAUUSD  |  {tf.upper()}  |  سشن {SESS_FA[sess]}")
 
 os.makedirs("out", exist_ok=True)
-draw(shown, "out/slide1.png", "UP or DOWN?", "#ffd54f", ylim1, sub,
-     footer="Do your own analysis. Where does price go next?")
-draw(w, "out/slide2.png", "UP ▲" if up else "DOWN ▼",
-     "#00e676" if up else "#ff5252", ylim2, sub,
-     extra=f"${abs(diff):.1f} in {HIDE} candles",
-     footer="Post your analysis or your reason in comments", cut=True)
+draw(shown, "out/slide1.png", fa("بالا یا پایین؟"), YELLOW, ylim1, sub,
+     footer=fa("خودت تحلیل کن؛ قیمت از اینجا کجا می‌ره؟"))
+draw(w, "out/slide2.png",
+     fa("صعودی ▲") if up else fa("نزولی ▼"), col, ylim2, sub,
+     extra=fa(f"قیمت از {p_start:.2f} به {p_end:.2f} رسید"),
+     footer=fa("تحلیل یا دلیلت رو کامنت کن"), result=True)
 
 caption = (f"طلا (XAUUSD) | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
-           f"سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} (وقت تهران)\n\n"
-           "چارت رو خودت تحلیل کن 🧐\n"
-           "قیمت از اینجا بالا میره یا پایین؟ 👆👇\n\n"
-           "✍️ حدست رو با دلیل بنویس\n"
-           "📸 یا عکس تحلیل خودت رو کامنت کن\n"
-           "بعد برو اسلاید دوم و جواب رو ببین ✅\n"
-           "بهترین تحلیل رو پین می‌کنم 📌\n\n"
-           "⚠️ محتوای آموزشی/سرگرمیه و توصیه مالی نیست.\n"
-           "#طلا #فارکس #xauusd #gold #پرایس_اکشن #تحلیل_تکنیکال #forex #trading")
+          f"سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} (وقت تهران)\n\n"
+          "چارت رو خودت تحلیل کن 🧐\n"
+          "قیمت از اینجا بالا میره یا پایین؟ 👆👇\n\n"
+          "✍️ حدست رو با دلیل بنویس\n"
+          "📸 یا عکس تحلیل خودت رو کامنت کن\n"
+          "بعد برو اسلاید دوم و جواب رو ببین ✅\n"
+          "بهترین تحلیل رو پین می‌کنم 📌\n\n"
+          "⚠️ محتوای آموزشی/سرگرمیه و توصیه مالی نیست.\n"
+          "#طلا #فارکس #xauusd #gold #پرایس_اکشن #تحلیل_تکنیکال #forex #trading")
 
 dir_fa = "بالا" if up else "پایین"
 kind_fa = "ادامه‌ی روند قبلی" if a["cont"] else "برگشت روند"
-answer = (f"✅ جواب: قیمت {dir_fa} رفت، حدود {abs(diff):.1f} دلار در {HIDE} کندل.\n\n"
-          f"نکات برای کامنت پین‌شده:\n"
+answer = (f"✅ جواب: قیمت {dir_fa} رفت.\n"
+          f"از {p_start:.2f} شروع شد و به {p_end:.2f} رسید.\n\n"
+          "نکات برای کامنت پین‌شده:\n"
           f"• قبل از رنج یه حرکت {'صعودی' if a['net'] > 0 else 'نزولی'} قوی بود.\n"
           f"• تو رنج، سقف حدود {a['top']} بار و کف حدود {a['bot']} بار تست شد.\n"
           f"• قیمت از رنج {dir_fa} خارج شد ({kind_fa}).\n\n"
