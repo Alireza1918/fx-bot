@@ -1,19 +1,8 @@
 import yfinance as yf, mplfinance as mpf, pandas as pd, random, os, sys
 import numpy as np
-import arabic_reshaper
-from bidi.algorithm import get_display
 import matplotlib
 matplotlib.use("Agg")
-from matplotlib import font_manager as fm
-from matplotlib.patches import Rectangle
-
-FONT = "fonts/Vazirmatn.ttf"
-if os.path.exists(FONT):
-    fm.fontManager.addfont(FONT)
-    FA_FONT = fm.FontProperties(fname=FONT).get_name()
-else:
-    FA_FONT = "DejaVu Sans"
-matplotlib.rcParams["font.family"] = FA_FONT
+matplotlib.rcParams["font.family"] = "DejaVu Sans"
 
 PAGE = "@your_page"
 DISPLAY_TZ = "Asia/Tehran"
@@ -21,20 +10,15 @@ SYMBOLS = ["XAUUSD=X", "GC=F"]
 CONFIG = {"1m": dict(period="7d", interval="1m"),
           "5m": dict(period="60d", interval="5m")}
 STEP = {"1m": 1, "5m": 5}
-IMP, CONS, HIDE = 30, 40, 30
-SHOW = IMP + CONS
+IMP, PAUSE, HIDE = 50, 12, 25
+SHOW = IMP + PAUSE
 TOTAL = SHOW + HIDE
 SESS_FA = {"ASIA": "آسیا", "LONDON": "لندن",
-           "LONDON/NY OVERLAP": "لندن و نیویورک",
-           "NEW YORK": "نیویورک"}
+           "LONDON/NY OVERLAP": "لندن و نیویورک", "NEW YORK": "نیویورک"}
+SESS_EN = {"ASIA": "ASIA", "LONDON": "LONDON",
+           "LONDON/NY OVERLAP": "LONDON/NY", "NEW YORK": "NEW YORK"}
 GREEN, RED, YELLOW = "#26a69a", "#ef5350", "#ffd54f"
 BG = "#0e1117"
-
-reshaper = arabic_reshaper.ArabicReshaper()
-
-
-def fa(s):
-    return reshaper.reshape(s)[::-1]
 
 
 def session_of(h):
@@ -66,55 +50,38 @@ def load(tf):
     return None
 
 
-def clusters(mask, gap=4):
-    n, last = 0, -99
-    for i, f in enumerate(mask):
-        if f:
-            if i - last > gap:
-                n += 1
-            last = i
-    return n
-
-
 def analyze(w, avg, mult):
-    imp, cons, post = w.iloc[:IMP], w.iloc[IMP:SHOW], w.iloc[SHOW:]
+    imp, pause, post = w.iloc[:IMP], w.iloc[IMP:SHOW], w.iloc[SHOW:]
     net = imp["Close"].iloc[-1] - imp["Close"].iloc[0]
     rng = imp["High"].max() - imp["Low"].min()
     if rng == 0 or abs(net) < mult * avg:
         return None
     eff = abs(net) / rng
-    if eff < 0.5:
+    if eff < 0.55:
         return None
-    hi, lo = cons["High"].max(), cons["Low"].min()
-    h = hi - lo
-    if h < 2.5 * avg or h > 0.7 * abs(net):
+    d0 = 1 if net > 0 else -1
+    # بخش آخر حرکت هم باید تند باشه
+    last = imp.iloc[-15:]
+    if (last["Close"].iloc[-1] - last["Close"].iloc[0]) * d0 < 0.4 * abs(net):
         return None
-    top = clusters((cons["High"] >= hi - 0.12 * h).values)
-    bot = clusters((cons["Low"] <= lo + 0.12 * h).values)
-    if top < 2 or bot < 2:
+    # مکث کوتاه و فشرده
+    ph, pl = pause["High"].max(), pause["Low"].min()
+    if (ph - pl) > 0.45 * abs(net):
         return None
     cl = post["Close"].values
-    out = np.where((cl > hi + 0.15 * h) | (cl < lo - 0.15 * h))[0]
-    if len(out) == 0:
+    ref = imp["Close"].iloc[-1]
+    moved = (cl[-1] - pause["Close"].iloc[-1])
+    if abs(moved) < 0.35 * abs(net):
         return None
-    k = int(out[0])
-    if k > 20:
-        return None
-    d = 1 if cl[k] > hi else -1
-    level = hi if d == 1 else lo
-    if (cl[-1] - level) * d < 0.5 * h:
-        return None
-    body = abs(post["Close"].iloc[k] - post["Open"].iloc[k])
-    avgb = (cons["Close"] - cons["Open"]).abs().mean()
-    ratio = body / avgb if avgb > 0 else 0
-    score = top + bot + 4 * eff + min(ratio, 3)
-    return dict(net=net, top=top, bot=bot, score=score,
-                cont=(d == (1 if net > 0 else -1)))
+    big = int(((imp["Close"] - imp["Open"]).abs() > 1.5 * avg).sum())
+    score = 5 * eff + abs(net) / (avg * 10) + big / 10 + abs(moved) / abs(net)
+    return dict(net=net, moved=moved, eff=eff, score=score,
+                cont=((moved > 0) == (net > 0)))
 
 
 def pick(df, tf):
     avg = (df["High"] - df["Low"]).mean()
-    for mult in (8, 6, 4):
+    for mult in (14, 10, 7):
         out = []
         for i in range(0, len(df) - TOTAL, 2):
             w = df.iloc[i:i + TOTAL]
@@ -128,7 +95,7 @@ def pick(df, tf):
             sess = random.choice(sorted({o[2] for o in out}))
             pool = sorted([o for o in out if o[2] == sess],
                           key=lambda o: -o[1]["score"])
-            pool = pool[:max(1, len(pool) // 4)]
+            pool = pool[:max(1, len(pool) // 3)]
             i, a, _ = random.choice(pool)
             return i, a
     return None
@@ -161,7 +128,6 @@ p_end = w["Close"].iloc[-1]
 up = p_end > p_start
 col = GREEN if up else RED
 
-# هر دو اسلاید یک محور قیمت یکسان دارن (بدون سرنخ، ولی چارت بزرگ)
 lo2, hi2 = w["Low"].min(), w["High"].max()
 pad = (hi2 - lo2) * 0.06
 YLIM = (lo2 - pad, hi2 + pad)
@@ -171,21 +137,18 @@ mc = mpf.make_marketcolors(up=GREEN, down=RED, edge="inherit",
                            wick="inherit", inherit=True)
 STYLE = mpf.make_mpf_style(marketcolors=mc, facecolor=BG, figcolor=BG,
                            edgecolor="#2a2f3a", gridcolor="#1c212b",
-                           gridstyle="-", y_on_right=True,
-                           rc={"font.family": FA_FONT})
+                           gridstyle="-", y_on_right=True)
 
 
-def tlabels(index, step=10):
+def tlabels(index, step=12):
     t = pd.DatetimeIndex(index).tz_localize("UTC").tz_convert(DISPLAY_TZ)
     pos = list(range(0, len(t), step))
     return pos, [t[p].strftime("%H:%M") for p in pos]
 
 
 def draw(data, path, title, tcolor, sub, extra=None, footer=None, result=False):
-    # برای اسلاید ۱ هم محور x تا TOTAL کشیده می‌شه (سمت راست خالی)
     fig, axes = mpf.plot(data, type="candle", style=STYLE, ylabel="",
-                         returnfig=True, figsize=(10.8, 13.5),
-                         datetime_format="%H:%M")
+                         returnfig=True, figsize=(10.8, 13.5))
     for ax_ in axes:
         ax_.set_position(RECT)
     ax = axes[0]
@@ -210,41 +173,35 @@ def draw(data, path, title, tcolor, sub, extra=None, footer=None, result=False):
     if result:
         ax.axvspan(SHOW - 0.5, TOTAL, color=col, alpha=0.08)
         ax.axvline(SHOW - 0.5, color="white", linestyle="--", alpha=0.5)
-        ax.text(SHOW - 1.5, YLIM[1] - (YLIM[1] - YLIM[0]) * 0.02,
-                fa("لحظه‌ی حدس"), color="white", fontsize=22,
-                ha="right", va="top", weight="bold")
 
-    fig.text(0.5, 0.945, title, color=tcolor, fontsize=56,
+    fig.text(0.5, 0.945, title, color=tcolor, fontsize=62,
              ha="center", va="center", weight="bold")
-    fig.text(0.5, 0.895, sub, color="#9aa3b2", fontsize=26,
+    fig.text(0.5, 0.895, sub, color="#9aa3b2", fontsize=28,
              ha="center", va="center")
     if extra:
-        fig.text(0.5, 0.855, extra, color=tcolor, fontsize=28,
+        fig.text(0.5, 0.855, extra, color=tcolor, fontsize=30,
                  ha="center", va="center", weight="bold")
     if footer:
-        fig.text(0.5, 0.085, footer, color=YELLOW, fontsize=30,
+        fig.text(0.5, 0.085, footer, color=YELLOW, fontsize=28,
                  ha="center", va="center", weight="bold")
     fig.text(0.5, 0.04, PAGE, color="#6b7280", fontsize=22,
              ha="center", va="center")
     fig.savefig(path, dpi=100, facecolor=BG)
 
 
-sub = fa(f"طلا XAUUSD  |  {tf.upper()}  |  سشن {SESS_FA[sess]}")
-# نکته: بخش لاتین داخل متن bidi ممکنه جابجا بشه؛ پس خطوط جدا می‌نویسیم
-sub = f"XAUUSD   {tf.upper()}   " + fa(f"سشن {SESS_FA[sess]}")
+sub = f"XAUUSD  |  {tf.upper()}  |  {SESS_EN[sess]} SESSION"
 
 os.makedirs("out", exist_ok=True)
-draw(shown, "out/slide1.png", fa("بالا یا پایین؟"), YELLOW, sub,
-     footer=fa("خودت تحلیل کن، قیمت از اینجا کجا می‌ره؟"))
-draw(w, "out/slide2.png",
-     fa("صعودی ▲") if up else fa("نزولی ▼"), col, sub,
-     extra=fa("رسید") + f" {p_end:.2f} " + fa("به") + f" {p_start:.2f} " + fa("از قیمت"),
-     footer=fa("تحلیل یا دلیلت رو کامنت کن"), result=True)
+draw(shown, "out/slide1.png", "UP or DOWN?", YELLOW, sub,
+     footer="Do your own analysis")
+draw(w, "out/slide2.png", "UP ▲" if up else "DOWN ▼", col, sub,
+     extra=f"{p_start:.2f}  →  {p_end:.2f}",
+     footer="Comment your analysis", result=True)
 
 caption = (f"طلا (XAUUSD) | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
           f"سشن: {SESS_FA[sess]} | ساعت: {t_local.strftime('%H:%M')} (وقت تهران)\n\n"
-          "چارت رو خودت تحلیل کن 🧐\n"
-          "قیمت از اینجا بالا میره یا پایین؟ 👆👇\n\n"
+          "بعد از یه حرکت تند، قیمت یه مکث کرده 🚀\n"
+          "از اینجا بالا میره یا پایین؟ 👆👇\n\n"
           "✍️ حدست رو با دلیل بنویس\n"
           "📸 یا عکس تحلیل خودت رو کامنت کن\n"
           "بعد برو اسلاید دوم و جواب رو ببین ✅\n"
@@ -253,13 +210,12 @@ caption = (f"طلا (XAUUSD) | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
           "#طلا #فارکس #xauusd #gold #پرایس_اکشن #تحلیل_تکنیکال #forex #trading")
 
 dir_fa = "بالا" if up else "پایین"
-kind_fa = "ادامه‌ی روند قبلی" if a["cont"] else "برگشت روند"
+kind_fa = "ادامه‌ی حرکت قبلی" if a["cont"] else "برگشت"
 answer = (f"✅ جواب: قیمت {dir_fa} رفت.\n"
           f"از {p_start:.2f} شروع شد و به {p_end:.2f} رسید.\n\n"
           "نکات برای کامنت پین‌شده:\n"
-          f"• قبل از رنج یه حرکت {'صعودی' if a['net'] > 0 else 'نزولی'} قوی بود.\n"
-          f"• تو رنج، سقف حدود {a['top']} بار و کف حدود {a['bot']} بار تست شد.\n"
-          f"• قیمت از رنج {dir_fa} خارج شد ({kind_fa}).\n\n"
+          f"• قبل از مکث یه حرکت {'صعودی' if a['net'] > 0 else 'نزولی'} تند و تمیز بود.\n"
+          f"• بعد از مکث کوتاه، قیمت {dir_fa} رفت ({kind_fa}).\n\n"
           "شما چی دیده بودید؟ 👇")
 
 open("out/caption.txt", "w", encoding="utf-8").write(caption + "\n-----\n" + answer)
