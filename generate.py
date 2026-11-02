@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use("Agg")
 matplotlib.rcParams["font.family"] = "DejaVu Sans"
 
-PAGE = "@your_page"
+PAGE = "@market_made.ir"
 DISPLAY_TZ = "Asia/Tehran"
 SYMBOLS = ["XAUUSD=X", "GC=F"]
 CONFIG = {"1m": dict(period="7d", interval="1m"),
