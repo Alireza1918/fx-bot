@@ -132,7 +132,7 @@ lo2, hi2 = w["Low"].min(), w["High"].max()
 pad = (hi2 - lo2) * 0.06
 YLIM = (lo2 - pad, hi2 + pad)
 
-RECT = [0.02, 0.17, 0.86, 0.64]
+RECT = [0.02, 0.14, 0.86, 0.70]
 mc = mpf.make_marketcolors(up=GREEN, down=RED, edge="inherit",
                            wick="inherit", inherit=True)
 STYLE = mpf.make_mpf_style(marketcolors=mc, facecolor=BG, figcolor=BG,
@@ -174,17 +174,17 @@ def draw(data, path, title, tcolor, sub, extra=None, footer=None, result=False):
         ax.axvspan(SHOW - 0.5, TOTAL, color=col, alpha=0.08)
         ax.axvline(SHOW - 0.5, color="white", linestyle="--", alpha=0.5)
 
-    fig.text(0.5, 0.945, title, color=tcolor, fontsize=62,
+    fig.text(0.5, 0.95, title, color=tcolor, fontsize=62,
              ha="center", va="center", weight="bold")
-    fig.text(0.5, 0.895, sub, color="#9aa3b2", fontsize=28,
+    fig.text(0.5, 0.905, sub, color="#9aa3b2", fontsize=28,
              ha="center", va="center")
     if extra:
-        fig.text(0.5, 0.855, extra, color=tcolor, fontsize=30,
+        fig.text(0.5, 0.87, extra, color=tcolor, fontsize=30,
                  ha="center", va="center", weight="bold")
     if footer:
-        fig.text(0.5, 0.085, footer, color=YELLOW, fontsize=28,
+        fig.text(0.5, 0.07, footer, color=YELLOW, fontsize=28,
                  ha="center", va="center", weight="bold")
-    fig.text(0.5, 0.04, PAGE, color="#6b7280", fontsize=22,
+    fig.text(0.5, 0.032, PAGE, color="#6b7280", fontsize=22,
              ha="center", va="center")
     fig.savefig(path, dpi=100, facecolor=BG)
 
@@ -219,3 +219,6 @@ answer = (f"✅ جواب: قیمت {dir_fa} رفت.\n"
           "شما چی دیده بودید؟ 👇")
 
 open("out/caption.txt", "w", encoding="utf-8").write(caption + "\n-----\n" + answer)
+from PIL import Image
+for p in ("out/slide1.png", "out/slide2.png"):
+    print(p, Image.open(p).size)
