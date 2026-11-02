@@ -34,7 +34,7 @@ reshaper = arabic_reshaper.ArabicReshaper()
 
 
 def fa(s):
-    return get_display(reshaper.reshape(s))
+    return reshaper.reshape(s)[::-1]
 
 
 def session_of(h):
@@ -238,7 +238,7 @@ draw(shown, "out/slide1.png", fa("بالا یا پایین؟"), YELLOW, sub,
      footer=fa("خودت تحلیل کن، قیمت از اینجا کجا می‌ره؟"))
 draw(w, "out/slide2.png",
      fa("صعودی ▲") if up else fa("نزولی ▼"), col, sub,
-     extra=fa(f"قیمت از {p_start:.2f} به {p_end:.2f} رسید"),
+     extra=fa("رسید") + f" {p_end:.2f} " + fa("به") + f" {p_start:.2f} " + fa("از قیمت"),
      footer=fa("تحلیل یا دلیلت رو کامنت کن"), result=True)
 
 caption = (f"طلا (XAUUSD) | تایم‌فریم {STEP[tf]} دقیقه ⏱\n"
